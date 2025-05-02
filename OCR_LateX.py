@@ -67,35 +67,30 @@ def call_groq_api(image_base64: str, prompt: str):
 #-------------------------------------
 def extract_latex_from_image(uploaded_file):
     with st.spinner("Processing image..."):
-        try:
-            # Encode image to Base64
-            buffered = BytesIO()
-            image = Image.open(uploaded_file)
-            if image.mode == "RGBA":
-                image = image.convert("RGB")
-            image.save(buffered, format="JPEG")
-            base64_image = base64.b64encode(buffered.getvalue()).decode("utf-8")
-            
-            response = client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        "Extract the mathematical equation in the provided image as LaTeX code.",
-                        "Follow these strict guidelines:",
-                        "- Output only the LaTeX code without additional text.",
-                        "- Do not simplify equations.",
-                        "- Do not add documentclass, packages, or begindocument.",
-                        "- Do not include dollar signs ($) around the LaTeX code.",
-                        "- Do not explain symbols in the equation.",
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                    ]
-                }]
-            )
-            return response.choices[0].message.content  # Fix: Access content correctly
-        except Exception as e:
-            st.error(f"Error processing image: {str(e)}")
+        # --- 1) Read & encode the image ---
+        buf = BytesIO()
+        img = Image.open(uploaded_file)
+        if img.mode == "RGBA":
+            img = img.convert("RGB")
+        img.save(buf, format="JPEG")
+        img_b64 = base64.b64encode(buf.getvalue()).decode()
+
+        # --- 2) Build your prompt ---
+        prompt = (
+            "Extract the mathematical equation in the provided image as LaTeX code.\n"
+            "- Output only the LaTeX code without any extra text or delimiters.\n"
+            "- Do not add documentclass, packages, or dollar signs.\n"
+            "- Do not simplify or explain."
+        )
+
+        # --- 3) Call Groq API ---
+        result, error = call_groq_api(img_b64, prompt)
+        if error:
+            st.error(f"Error from Groq: {error}")
             return None
+
+        return result
+
 
 #-------------------------------------
 #          Streamlit UI
